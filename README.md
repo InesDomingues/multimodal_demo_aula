@@ -1,17 +1,17 @@
 # Demo Interativa — Multi-Modalidade em Imagem Médica
 
-Esta pequena aplicação demonstra, de forma pedagógica, o conceito de **multi-modalidade em imagem médica**.
+Esta aplicação demonstra, de forma pedagógica, o conceito de **multi-modalidade em imagem médica**.
 
-O objetivo é mostrar que:
+Nesta versão, a imagem sintética usa uma **máscara real de uma massa mamária**. A aplicação escolhe aleatoriamente uma máscara da pasta `masks/`, recorta a região da massa, redimensiona-a e usa a sua forma para criar uma lesão numa imagem sintética com ruído.
 
-1. Uma imagem médica isolada pode ser ambígua;
-2. Dados clínicos isolados também podem ser insuficientes;
-3. A combinação entre imagem e dados clínicos pode alterar a estimativa final;
-4. Multi-modalidade significa combinar diferentes fontes de informação, por exemplo:
-   - imagem médica;
-   - dados clínicos estruturados;
-   - texto clínico;
-   - histórico do/a paciente.
+O objetivo continua a ser simples:
+
+1. mostrar que a informação visual pode ser ambígua;
+2. mostrar que dados clínicos adicionais podem alterar a estimativa;
+3. comparar três cenários:
+   - apenas imagem/máscara;
+   - apenas dados clínicos;
+   - imagem/máscara + dados clínicos.
 
 > **Nota importante:** esta aplicação é apenas uma simulação educativa.  
 > Não representa um modelo clínico real, não deve ser usada para diagnóstico e os valores apresentados não correspondem a probabilidades clínicas reais.
@@ -24,20 +24,22 @@ O objetivo é mostrar que:
 multimodal_medical_demo/
 ├── app.py
 ├── requirements.txt
-└── README.md
+├── README.md
+└── masks/
+    ├── 20587994_mask.png
+    ├── 20588046_mask.png
+    └── 20587902_mask.png
 ```
+
+Pode adicionar mais máscaras à pasta `masks/`.
 
 ---
 
 ## Como instalar
 
-Criar um ambiente virtual, se necessário:
-
 ```bash
 python -m venv venv
 ```
-
-Ativar o ambiente virtual:
 
 ### Windows
 
@@ -61,62 +63,54 @@ pip install -r requirements.txt
 
 ## Como correr a aplicação
 
-Na pasta do projeto, executar:
+Na pasta do projeto:
 
 ```bash
 streamlit run app.py
 ```
 
-Depois, abrir o endereço indicado no terminal, normalmente:
+---
+
+## Como adicionar mais máscaras
+
+Coloque os ficheiros de máscara na pasta:
 
 ```text
-http://localhost:8501
+masks/
 ```
+
+Formatos recomendados:
+
+```text
+.png
+.jpg
+.jpeg
+```
+
+As máscaras devem ter fundo preto e a região da massa a branco ou em tons claros.
+
+A aplicação irá:
+
+1. escolher uma máscara da pasta;
+2. recortar automaticamente a região da massa;
+3. redimensioná-la;
+4. inseri-la numa imagem sintética com ruído;
+5. calcular classificações simuladas.
 
 ---
 
 ## O que a aplicação mostra
 
-A aplicação gera uma imagem médica sintética com ruído e uma estrutura circular que representa, de forma simplificada, um órgão.
-
-O utilizador pode ativar ou desativar:
-
-- lesão visível;
-- tabagismo;
-- perda de peso;
-- histórico de cancro.
-
 A aplicação compara três estimativas simuladas:
 
-1. **Modelo apenas com imagem**  
-   Usa apenas a presença ou ausência de uma alteração visual na imagem sintética.
+1. **Apenas imagem/máscara**  
+   Usa a presença da massa representada pela máscara.
 
-2. **Modelo apenas com dados clínicos**  
-   Usa apenas fatores clínicos simulados, sem olhar para a imagem.
+2. **Apenas dados clínicos**  
+   Usa apenas fatores clínicos simulados.
 
-3. **Modelo multimodal**  
-   Combina a estimativa baseada na imagem com a estimativa baseada nos dados clínicos.
-
----
-
-## Classificação usada na demo
-
-Cada estimativa gera uma classificação simplificada:
-
-- valor inferior a 0.50: **Baixa suspeição simulada**;
-- valor igual ou superior a 0.50: **Elevada suspeição simulada**.
-
-Esta classificação é apenas pedagógica.  
-Não tem significado clínico real.
-
----
-
-## Mensagem pedagógica principal
-
-A imagem médica raramente existe isoladamente na prática clínica.  
-A interpretação de uma imagem pode mudar quando se consideram sintomas, antecedentes, fatores de risco e outra informação clínica.
-
-A multi-modalidade procura precisamente integrar diferentes tipos de dados para apoiar uma interpretação mais contextualizada.
+3. **Imagem/máscara + dados clínicos**  
+   Combina a estimativa visual com a estimativa clínica.
 
 ---
 
@@ -124,26 +118,13 @@ A multi-modalidade procura precisamente integrar diferentes tipos de dados para 
 
 Esta aplicação:
 
-- não usa dados reais;
 - não treina nenhum modelo de inteligência artificial;
-- não usa imagens clínicas reais;
+- não usa a imagem médica original, apenas a máscara da massa;
 - não estima risco clínico verdadeiro;
-- usa pesos arbitrários apenas para fins didáticos.
+- usa pesos arbitrários apenas para fins didáticos;
+- não deve ser usada para apoio à decisão clínica.
 
-Os valores foram escolhidos para tornar o efeito da informação clínica visível durante a demonstração.
-
----
-
-## Possíveis usos em aula ou apresentação
-
-Esta demo pode ser usada para introduzir temas como:
-
-- inteligência artificial em saúde;
-- imagem médica;
-- modelos multimodais;
-- integração de dados clínicos;
-- apoio à decisão clínica;
-- riscos de interpretação baseada apenas numa modalidade de dados.
+As máscaras representam apenas a forma da massa. Não incluem textura, intensidade, contexto anatómico, margens no tecido envolvente ou outros elementos importantes da imagem médica real.
 
 ---
 
@@ -156,9 +137,3 @@ Esta demo pode ser usada para introduzir temas como:
 - Moor, M., Banerjee, O., Abad, Z. S. H., et al. (2023). “Foundation Models for Generalist Medical Artificial Intelligence.” *Nature*, 616, 259–265.
 
 - Acosta, J. N., Falcone, G. J., Rajpurkar, P., & Topol, E. J. (2022). “Multimodal Biomedical AI.” *Nature Medicine*, 28, 1773–1784.
-
----
-
-## Licença
-
-Este exemplo pode ser usado livremente para fins educativos.

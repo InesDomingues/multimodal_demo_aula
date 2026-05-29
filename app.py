@@ -1,8 +1,12 @@
 """
 Demo Interativa — Multi-Modalidade em Imagem Médica
 
-Versão com máscaras reais de massas mamárias.
-Simulação pedagógica, sem treino de modelos.
+Versão com máscaras reais de massas mamárias e extração de features morfológicas.
+
+Simulação pedagógica:
+- não treina modelos;
+- não usa probabilidades clínicas reais;
+- não deve ser usada para diagnóstico.
 """
 
 from pathlib import Path
@@ -11,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from PIL import Image
+from skimage.measure import label, regionprops, perimeter
 
 
 st.set_page_config(
@@ -19,6 +24,10 @@ st.set_page_config(
     layout="wide",
 )
 
+
+# ============================================================
+# FUNÇÕES PARA MÁSCARAS
+# ============================================================
 
 def list_mask_files(mask_dir: Path) -> list[Path]:
     """Lista máscaras disponíveis."""
@@ -100,43 +109,158 @@ def create_synthetic_scan_from_mask(
     return np.clip(img, 0, 1)
 
 
-def image_only_prediction(lesion_visible: bool) -> float:
-    """Estimativa simulada baseada apenas na imagem/máscara."""
+# ============================================================
+# FEATURES MORFOLÓGICAS
+# ============================================================
 
-    return 0.62 if lesion_visible else 0.38
+def extract_mask_features(mask: np.ndarray) -> dict:
+    """
+    Extrai features morfológicas simples da máscara.
 
+    Estas features não são usadas como diagnóstico clínico.
+    Servem apenas para uma regra pedagógica de classificação.
+    """
+
+    if not mask.any():
+        return {
+            "area_pixels": 0.0,
+            "area_ratio": 0.0,
+            "perimeter": 0.0,
+            "circularity": 0.0,
+            "solidity": 0.0,
+            "eccentricity": 0.0,
+            "major_axis_length": 0.0,
+            "minor_axis_length": 0.0,
+            "axis_ratio": 0.0,
+            "irregularity": 0.0,
+        }
+
+    labelled = label(mask)
+    regions = regionprops(labelled)
+
+    # Caso existam várias regiões, usar a maior.
+    region = max(regions, key=lambda r: r.area)
+
+    area = float(region.area)
+    total_area = float(mask.shape[0] * mask.shape[1])
+    area_ratio = area / total_area
+
+    perim = float(perimeter(mask, neighborhood=8))
+
+    if perim > 0:
+        circularity = float((4 * np.pi * area) / (perim ** 2))
+        irregularity = float((perim ** 2) / (4 * np.pi * area))
+    else:
+        circularity = 0.0
+        irregularity = 0.0
+
+    solidity = float(region.solidity)
+    eccentricity = float(region.eccentricity)
+    major_axis = float(region.major_axis_length)
+    minor_axis = float(region.minor_axis_length)
+
+    if minor_axis > 0:
+        axis_ratio = major_axis / minor_axis
+    else:
+        axis_ratio = 0.0
+
+    return {
+        "area_pixels": area,
+        "area_ratio": area_ratio,
+        "perimeter": perim,
+        "circularity": circularity,
+        "solidity": solidity,
+        "eccentricity": eccentricity,
+        "major_axis_length": major_axis,
+        "minor_axis_length": minor_axis,
+        "axis_ratio": axis_ratio,
+        "irregularity": irregularity,
+    }
+
+
+def morphology_score(features: dict, lesion_visible: bool) -> float:
+    """
+    Estimativa simulada baseada nas features morfológicas da máscara.
+
+    Regra pedagógica:
+    - menor circularidade aumenta a suspeição;
+    - menor solidez aumenta a suspeição;
+    - maior excentricidade aumenta a suspeição;
+    - maior irregularidade aumenta a suspeição.
+
+    Os pesos são arbitrários e servem apenas para demonstração.
+    """
+
+    if not lesion_visible:
+        return 0.25
+
+    circularity = features["circularity"]
+    solidity = features["solidity"]
+    eccentricity = features["eccentricity"]
+    irregularity = features["irregularity"]
+
+    # Componentes normalizadas de forma simples.
+    low_circularity_component = np.clip(1.0 - circularity, 0.0, 1.0)
+    low_solidity_component = np.clip(1.0 - solidity, 0.0, 1.0)
+    eccentricity_component = np.clip(eccentricity, 0.0, 1.0)
+    irregularity_component = np.clip((irregularity - 1.0) / 2.0, 0.0, 1.0)
+
+    score = (
+        0.25
+        + 0.25 * low_circularity_component
+        + 0.20 * low_solidity_component
+        + 0.15 * eccentricity_component
+        + 0.15 * irregularity_component
+    )
+
+    return float(np.clip(score, 0.01, 0.99))
+
+
+# ============================================================
+# CLASSIFICAÇÃO SIMULADA
+# ============================================================
 
 def clinical_only_prediction(
-    smoker: bool,
+    age_group: str,
+    family_history: bool,
     weight_loss: bool,
     previous_cancer: bool,
 ) -> float:
-    """Estimativa simulada baseada apenas nos dados clínicos."""
+    """
+    Estimativa simulada baseada apenas nos dados clínicos.
 
-    score = 0.25
+    Os pesos são arbitrários e servem apenas para demonstração.
+    """
 
-    if smoker:
+    score = 0.20
+
+    if age_group == "40–59":
+        score += 0.10
+    elif age_group == "60+":
         score += 0.18
 
+    if family_history:
+        score += 0.16
+
     if weight_loss:
-        score += 0.22
+        score += 0.18
 
     if previous_cancer:
-        score += 0.25
+        score += 0.22
 
-    return min(score, 0.99)
+    return float(min(score, 0.99))
 
 
 def multimodal_prediction(image_score: float, clinical_score: float) -> float:
     """
-    Estimativa simulada combinando imagem/máscara e dados clínicos.
+    Estimativa simulada combinando morfologia da máscara e dados clínicos.
 
     Média ponderada:
-    - 60% imagem/máscara;
+    - 60% morfologia da máscara;
     - 40% dados clínicos.
     """
 
-    return min((0.60 * image_score) + (0.40 * clinical_score), 0.99)
+    return float(min((0.60 * image_score) + (0.40 * clinical_score), 0.99))
 
 
 def classify(score: float, threshold: float = 0.50) -> str:
@@ -151,6 +275,33 @@ def yes_no(value: bool) -> str:
     return "Sim" if value else "Não"
 
 
+def explain_morphology(features: dict) -> str:
+    """Explicação curta baseada nas features."""
+
+    circularity = features["circularity"]
+    solidity = features["solidity"]
+    eccentricity = features["eccentricity"]
+
+    notes = []
+
+    if circularity < 0.60:
+        notes.append("a forma é pouco circular")
+    else:
+        notes.append("a forma é relativamente circular")
+
+    if solidity < 0.85:
+        notes.append("a lesão parece ter contorno mais irregular/recortado")
+    else:
+        notes.append("a lesão parece ter contorno relativamente compacto")
+
+    if eccentricity > 0.75:
+        notes.append("a lesão é mais alongada")
+    else:
+        notes.append("a lesão não é muito alongada")
+
+    return "Com base na máscara, " + ", ".join(notes) + "."
+
+
 def interpret_results(
     image_score: float,
     clinical_score: float,
@@ -161,7 +312,7 @@ def interpret_results(
     if classify(image_score) != classify(multimodal_score):
         return (
             "A combinação multimodal alterou a classificação em relação "
-            "ao modelo baseado apenas na imagem/máscara."
+            "ao modelo baseado apenas na morfologia da máscara."
         )
 
     if classify(clinical_score) != classify(multimodal_score):
@@ -176,19 +327,23 @@ def interpret_results(
     )
 
 
+# ============================================================
+# INTERFACE
+# ============================================================
+
 st.title("Demo Interativa — Multi-Modalidade em Imagem Médica")
 
 st.markdown(
     """
 Esta demo usa uma **máscara real de uma massa mamária** para gerar uma imagem
-sintética com ruído. A classificação continua a ser simulada, tal como na demo
-original.
+sintética com ruído. A classificação visual é baseada em **features
+morfológicas extraídas da máscara**, sem treinar qualquer modelo.
 
 A comparação inclui:
 
-1. **apenas imagem/máscara**;
+1. **apenas máscara/morfologia**;
 2. **apenas dados clínicos**;
-3. **imagem/máscara + dados clínicos**.
+3. **máscara/morfologia + dados clínicos**.
 """
 )
 
@@ -224,14 +379,23 @@ selected_mask = mask_files[int(rng.integers(0, len(mask_files)))]
 lesion_visible = st.sidebar.checkbox(
     "Massa visível",
     value=True,
-    help="Mantém a lógica da demo original: presença/ausência de alteração visual.",
+    help="Se desativado, a estimativa visual baixa, simulando ausência de sinal visual.",
 )
 
-smoker = st.sidebar.checkbox("Fumador/a", value=False)
+st.sidebar.subheader("Dados clínicos simulados")
+
+age_group = st.sidebar.selectbox(
+    "Grupo etário",
+    ["<40", "40–59", "60+"],
+    index=1,
+)
+
+family_history = st.sidebar.checkbox("Histórico familiar", value=False)
 weight_loss = st.sidebar.checkbox("Perda de peso", value=False)
-previous_cancer = st.sidebar.checkbox("Histórico de cancro", value=False)
+previous_cancer = st.sidebar.checkbox("Histórico pessoal de cancro", value=False)
 
 lesion_mask = load_mask(selected_mask, output_size=128)
+features = extract_mask_features(lesion_mask)
 
 img = create_synthetic_scan_from_mask(
     lesion_mask=lesion_mask,
@@ -239,10 +403,14 @@ img = create_synthetic_scan_from_mask(
     lesion_visible=lesion_visible,
 )
 
-image_score = image_only_prediction(lesion_visible)
+image_score = morphology_score(
+    features=features,
+    lesion_visible=lesion_visible,
+)
 
 clinical_score = clinical_only_prediction(
-    smoker=smoker,
+    age_group=age_group,
+    family_history=family_history,
     weight_loss=weight_loss,
     previous_cancer=previous_cancer,
 )
@@ -277,9 +445,10 @@ with col2:
         f"""
 | Variável clínica | Valor |
 |---|---:|
-| Fumador/a | {yes_no(smoker)} |
+| Grupo etário | {age_group} |
+| Histórico familiar | {yes_no(family_history)} |
 | Perda de peso | {yes_no(weight_loss)} |
-| Histórico de cancro | {yes_no(previous_cancer)} |
+| Histórico pessoal de cancro | {yes_no(previous_cancer)} |
 """
     )
 
@@ -287,13 +456,13 @@ with col2:
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
 
-    metric_col1.metric("Apenas imagem/máscara", f"{image_score:.2f}")
+    metric_col1.metric("Máscara/morfologia", f"{image_score:.2f}")
     metric_col1.caption(classify(image_score))
 
-    metric_col2.metric("Apenas dados clínicos", f"{clinical_score:.2f}")
+    metric_col2.metric("Dados clínicos", f"{clinical_score:.2f}")
     metric_col2.caption(classify(clinical_score))
 
-    metric_col3.metric("Imagem/máscara + dados clínicos", f"{multimodal_score:.2f}")
+    metric_col3.metric("Multimodal", f"{multimodal_score:.2f}")
     metric_col3.caption(classify(multimodal_score))
 
     st.info(
@@ -306,12 +475,32 @@ with col2:
 
 st.divider()
 
+st.subheader("Features extraídas da máscara")
+
+feature_col1, feature_col2, feature_col3, feature_col4 = st.columns(4)
+
+feature_col1.metric("Área relativa", f"{features['area_ratio']:.3f}")
+feature_col2.metric("Circularidade", f"{features['circularity']:.3f}")
+feature_col3.metric("Solidez", f"{features['solidity']:.3f}")
+feature_col4.metric("Excentricidade", f"{features['eccentricity']:.3f}")
+
+feature_col5, feature_col6, feature_col7, feature_col8 = st.columns(4)
+
+feature_col5.metric("Perímetro", f"{features['perimeter']:.1f}")
+feature_col6.metric("Irregularidade", f"{features['irregularity']:.3f}")
+feature_col7.metric("Eixo maior", f"{features['major_axis_length']:.1f}")
+feature_col8.metric("Razão eixos", f"{features['axis_ratio']:.2f}")
+
+st.caption(explain_morphology(features))
+
+st.divider()
+
 st.subheader("Comparação das três estimativas")
 
 labels = [
-    "Apenas imagem/máscara",
-    "Apenas dados clínicos",
-    "Imagem/máscara + dados clínicos",
+    "Máscara/morfologia",
+    "Dados clínicos",
+    "Multimodal",
 ]
 
 values = [image_score, clinical_score, multimodal_score]
@@ -322,7 +511,6 @@ ax_bar.axhline(0.50, linestyle="--", linewidth=1)
 ax_bar.set_ylim(0, 1)
 ax_bar.set_ylabel("Estimativa simulada")
 ax_bar.set_title("Comparação entre modalidades")
-ax_bar.tick_params(axis="x", rotation=15)
 st.pyplot(fig_bar, clear_figure=True)
 
 st.caption("A linha tracejada representa o limiar pedagógico de classificação: 0.50.")
@@ -333,45 +521,48 @@ st.subheader("Como interpretar esta demo")
 
 st.markdown(
     """
-Nesta versão, a componente visual é representada por uma **máscara real de uma
-massa mamária**. A máscara é usada apenas para dar uma forma realista à lesão
-numa imagem sintética com ruído.
+Nesta versão, a componente visual é baseada em **features morfológicas extraídas
+da máscara**. Isto aproxima a demo de uma lógica de análise quantitativa, mas
+continua a ser uma simulação.
 
-Isto permite manter a simplicidade da demo original, sem treinar modelos e sem
-usar imagens clínicas reais completas.
+A classificação baseada na máscara considera, de forma simplificada, que massas
+menos circulares, menos sólidas, mais alongadas ou mais irregulares podem
+aumentar a suspeição simulada.
 
-A máscara representa a morfologia da massa, mas não inclui textura, intensidade,
-contexto anatómico, margens no tecido envolvente ou outros elementos relevantes
-da imagem médica original.
-
-Os valores numéricos são simulados e foram escolhidos apenas para fins
-pedagógicos.
+A classificação clínica usa fatores clínicos simulados.  
+A classificação multimodal combina as duas estimativas.
 """
 )
 
-with st.expander("Ver fórmulas simplificadas usadas na simulação"):
+with st.expander("Ver regras simplificadas usadas na simulação"):
     st.markdown(
         """
-### Apenas imagem/máscara
+### Score morfológico
+
+O score começa em 0.25 e pode aumentar com:
 
 ```text
-0.62 se a massa estiver visível
-0.38 se a massa não estiver visível
+menor circularidade
+menor solidez
+maior excentricidade
+maior irregularidade
 ```
 
-### Apenas dados clínicos
+### Score clínico
 
 ```text
-estimativa_clinica = 0.25
-+ 0.18 se fumador/a
-+ 0.22 se existir perda de peso
-+ 0.25 se existir histórico de cancro
+estimativa_clinica = 0.20
++ idade 40–59: 0.10
++ idade 60+: 0.18
++ histórico familiar: 0.16
++ perda de peso: 0.18
++ histórico pessoal de cancro: 0.22
 ```
 
-### Imagem/máscara + dados clínicos
+### Score multimodal
 
 ```text
-estimativa_multimodal = 0.60 × estimativa_imagem
+estimativa_multimodal = 0.60 × estimativa_morfologica
                      + 0.40 × estimativa_clinica
 ```
 
@@ -382,30 +573,6 @@ score < 0.50  → Baixa suspeição simulada
 score >= 0.50 → Elevada suspeição simulada
 ```
 
-Estes valores não têm significado clínico real.
+Estes valores são arbitrários e não têm significado clínico real.
 """
     )
-
-st.divider()
-
-st.subheader("Referências científicas sugeridas")
-
-st.markdown(
-    """
-- Huang, S. C., Pareek, A., Seyyedi, S., Banerjee, I., & Lungren, M. P. (2020).  
-  “Fusion of Medical Imaging and Electronic Health Records Using Deep Learning: A Systematic Review and Implementation Guidelines.”  
-  *npj Digital Medicine*, 3, 136.
-
-- Sun, Z., Lin, M., Zhu, Q., Xie, Q., Wang, F., Lu, Z., & Peng, Y. (2023).  
-  “A Scoping Review on Multimodal Deep Learning in Biomedical Images and Texts.”  
-  *Journal of Biomedical Informatics*, 146, 104482.
-
-- Moor, M., Banerjee, O., Abad, Z. S. H., et al. (2023).  
-  “Foundation Models for Generalist Medical Artificial Intelligence.”  
-  *Nature*, 616, 259–265.
-
-- Acosta, J. N., Falcone, G. J., Rajpurkar, P., & Topol, E. J. (2022).  
-  “Multimodal Biomedical AI.”  
-  *Nature Medicine*, 28, 1773–1784.
-"""
-)

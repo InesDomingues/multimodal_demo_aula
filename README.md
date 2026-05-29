@@ -2,138 +2,70 @@
 
 Esta aplicação demonstra, de forma pedagógica, o conceito de **multi-modalidade em imagem médica**.
 
-Nesta versão, a imagem sintética usa uma **máscara real de uma massa mamária**. A aplicação escolhe aleatoriamente uma máscara da pasta `masks/`, recorta a região da massa, redimensiona-a e usa a sua forma para criar uma lesão numa imagem sintética com ruído.
+Nesta versão, a aplicação usa **máscaras reais de massas mamárias** e extrai automaticamente algumas **features morfológicas** da máscara. A classificação visual usa uma regra simples baseada na forma da lesão.
 
-O objetivo continua a ser simples:
-
-1. mostrar que a informação visual pode ser ambígua;
-2. mostrar que dados clínicos adicionais podem alterar a estimativa;
-3. comparar três cenários:
-   - apenas imagem/máscara;
-   - apenas dados clínicos;
-   - imagem/máscara + dados clínicos.
-
-> **Nota importante:** esta aplicação é apenas uma simulação educativa.  
-> Não representa um modelo clínico real, não deve ser usada para diagnóstico e os valores apresentados não correspondem a probabilidades clínicas reais.
+A classificação é simulada e pedagógica.
 
 ---
 
-## Estrutura dos ficheiros
+## Objetivo pedagógico
 
-```text
-multimodal_medical_demo/
-├── app.py
-├── requirements.txt
-├── README.md
-└── masks/
-    ├── 20587994_mask.png
-    ├── 20588046_mask.png
-    └── 20587902_mask.png
-```
+Mostrar que:
 
-Pode adicionar mais máscaras à pasta `masks/`.
+1. uma imagem ou máscara isolada pode ser ambígua;
+2. características morfológicas da lesão podem influenciar a estimativa visual;
+3. dados clínicos adicionais podem alterar a estimativa;
+4. a combinação de imagem/morfologia + dados clínicos é um exemplo simples de multimodalidade.
 
 ---
 
-## Como instalar
+## Features extraídas da máscara
 
-```bash
-python -m venv venv
-```
+A aplicação calcula automaticamente:
 
-### Windows
+- área relativa da massa;
+- perímetro;
+- circularidade;
+- solidez;
+- excentricidade;
+- razão entre eixo maior e eixo menor;
+- score de irregularidade.
 
-```bash
-venv\Scripts\activate
-```
-
-### macOS / Linux
-
-```bash
-source venv/bin/activate
-```
-
-Instalar os requisitos:
-
-```bash
-pip install -r requirements.txt
-```
+Estas features são usadas para criar uma classificação simulada baseada apenas na morfologia da máscara.
 
 ---
 
-## Como correr a aplicação
-
-Na pasta do projeto:
-
-```bash
-streamlit run app.py
-```
-
----
-
-## Como adicionar mais máscaras
-
-Coloque os ficheiros de máscara na pasta:
-
-```text
-masks/
-```
-
-Formatos recomendados:
-
-```text
-.png
-.jpg
-.jpeg
-```
-
-As máscaras devem ter fundo preto e a região da massa a branco ou em tons claros.
-
-A aplicação irá:
-
-1. escolher uma máscara da pasta;
-2. recortar automaticamente a região da massa;
-3. redimensioná-la;
-4. inseri-la numa imagem sintética com ruído;
-5. calcular classificações simuladas.
-
----
-
-## O que a aplicação mostra
+## Classificações apresentadas
 
 A aplicação compara três estimativas simuladas:
 
-1. **Apenas imagem/máscara**  
-   Usa a presença da massa representada pela máscara.
+1. **Apenas máscara / morfologia**  
+   Usa features extraídas da máscara.
 
 2. **Apenas dados clínicos**  
-   Usa apenas fatores clínicos simulados.
+   Usa fatores clínicos simulados.
 
-3. **Imagem/máscara + dados clínicos**  
-   Combina a estimativa visual com a estimativa clínica.
+3. **Máscara + dados clínicos**  
+   Combina a estimativa morfológica com a estimativa clínica.
 
 ---
 
-## Limitações da demo
+## Limitações
 
 Esta aplicação:
 
 - não treina nenhum modelo de inteligência artificial;
-- não usa a imagem médica original, apenas a máscara da massa;
+- não usa imagens médicas originais completas;
+- usa apenas máscaras de segmentação;
 - não estima risco clínico verdadeiro;
-- usa pesos arbitrários apenas para fins didáticos;
+- usa regras arbitrárias apenas para fins didáticos;
 - não deve ser usada para apoio à decisão clínica.
 
 As máscaras representam apenas a forma da massa. Não incluem textura, intensidade, contexto anatómico, margens no tecido envolvente ou outros elementos importantes da imagem médica real.
 
 ---
 
-## Referências científicas sugeridas
+## Nota ética e clínica
 
-- Huang, S. C., Pareek, A., Seyyedi, S., Banerjee, I., & Lungren, M. P. (2020). “Fusion of Medical Imaging and Electronic Health Records Using Deep Learning: A Systematic Review and Implementation Guidelines.” *npj Digital Medicine*, 3, 136.
-
-- Sun, Z., Lin, M., Zhu, Q., Xie, Q., Wang, F., Lu, Z., & Peng, Y. (2023). “A Scoping Review on Multimodal Deep Learning in Biomedical Images and Texts.” *Journal of Biomedical Informatics*, 146, 104482.
-
-- Moor, M., Banerjee, O., Abad, Z. S. H., et al. (2023). “Foundation Models for Generalist Medical Artificial Intelligence.” *Nature*, 616, 259–265.
-
-- Acosta, J. N., Falcone, G. J., Rajpurkar, P., & Topol, E. J. (2022). “Multimodal Biomedical AI.” *Nature Medicine*, 28, 1773–1784.
+Esta aplicação serve apenas para ensino.  
+Não deve ser interpretada como ferramenta de diagnóstico, triagem ou apoio clínico.

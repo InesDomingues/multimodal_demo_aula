@@ -71,31 +71,60 @@ def image_only_prediction(suspicious: bool) -> float:
     return 0.62 if suspicious else 0.38
 
 
-def multimodal_prediction(
-    image_score: float,
+def clinical_only_prediction(
     smoker: bool,
     weight_loss: bool,
     previous_cancer: bool,
 ) -> float:
     """
-    Estimativa simulada combinando imagem e dados clínicos.
+    Estimativa simulada baseada apenas nos dados clínicos.
 
-    Esta função não é um modelo real.
-    Os pesos atribuídos às variáveis clínicas são arbitrários.
+    Esta função ignora completamente a imagem.
+    Os pesos são arbitrários e servem apenas para demonstração.
     """
 
-    score = image_score
+    score = 0.25
 
     if smoker:
-        score += 0.12
+        score += 0.18
 
     if weight_loss:
-        score += 0.10
+        score += 0.22
 
     if previous_cancer:
-        score += 0.15
+        score += 0.25
 
     return min(score, 0.99)
+
+
+def multimodal_prediction(
+    image_score: float,
+    clinical_score: float,
+) -> float:
+    """
+    Estimativa simulada combinando imagem e dados clínicos.
+
+    Nesta versão, a estimativa multimodal é uma média ponderada:
+    - 60% imagem;
+    - 40% dados clínicos.
+
+    Estes pesos são arbitrários e servem apenas para fins pedagógicos.
+    """
+
+    score = (0.60 * image_score) + (0.40 * clinical_score)
+
+    return min(score, 0.99)
+
+
+def classify(score: float, threshold: float = 0.50) -> str:
+    """
+    Classificação simplificada baseada numa estimativa numérica.
+    """
+
+    if score >= threshold:
+        return "Elevada suspeição simulada"
+
+    return "Baixa suspeição simulada"
 
 
 def yes_no(value: bool) -> str:
@@ -104,21 +133,38 @@ def yes_no(value: bool) -> str:
     return "Sim" if value else "Não"
 
 
-def interpret_difference(image_score: float, multimodal_score: float) -> str:
+def interpret_results(
+    image_score: float,
+    clinical_score: float,
+    multimodal_score: float,
+) -> str:
     """
-    Produz uma interpretação simples da diferença entre as estimativas.
+    Produz uma interpretação simples das três estimativas.
     """
 
-    difference = abs(multimodal_score - image_score)
+    scores = {
+        "imagem": image_score,
+        "dados clínicos": clinical_score,
+        "combinação multimodal": multimodal_score,
+    }
 
-    if difference > 0.15:
+    highest_source = max(scores, key=scores.get)
+
+    if classify(image_score) != classify(multimodal_score):
         return (
-            "A informação clínica alterou de forma relevante "
-            "a estimativa de risco simulada."
+            "A combinação multimodal alterou a classificação em relação "
+            "ao modelo baseado apenas na imagem."
+        )
+
+    if classify(clinical_score) != classify(multimodal_score):
+        return (
+            "A combinação multimodal alterou a classificação em relação "
+            "ao modelo baseado apenas nos dados clínicos."
         )
 
     return (
-        "Neste exemplo, a imagem teve maior peso na estimativa final simulada."
+        f"As três estimativas apontam para uma classificação semelhante. "
+        f"A estimativa mais elevada veio de: {highest_source}."
     )
 
 
@@ -130,11 +176,14 @@ st.title("Demo Interativa — Multi-Modalidade em Imagem Médica")
 
 st.markdown(
     """
-Esta demo mostra, de forma simplificada, como uma estimativa baseada apenas
-numa imagem pode mudar quando são adicionados dados clínicos.
+Esta demo mostra, de forma simplificada, como diferentes fontes de informação
+podem produzir estimativas distintas.
 
-**Mensagem principal:** multi-modalidade significa combinar diferentes tipos
-de informação, como imagem médica, texto clínico e dados estruturados.
+A comparação inclui:
+
+1. **apenas imagem**;
+2. **apenas dados clínicos**;
+3. **imagem + dados clínicos**.
 """
 )
 
@@ -191,21 +240,23 @@ img = generate_scan(
 
 image_score = image_only_prediction(suspicious)
 
-multimodal_score = multimodal_prediction(
-    image_score=image_score,
+clinical_score = clinical_only_prediction(
     smoker=smoker,
     weight_loss=weight_loss,
     previous_cancer=previous_cancer,
 )
 
-difference = multimodal_score - image_score
+multimodal_score = multimodal_prediction(
+    image_score=image_score,
+    clinical_score=clinical_score,
+)
 
 
 # ============================================================
 # VISUALIZAÇÃO PRINCIPAL
 # ============================================================
 
-col1, col2 = st.columns([1.1, 1])
+col1, col2 = st.columns([1.05, 1.15])
 
 with col1:
     st.subheader("Imagem médica sintética")
@@ -230,24 +281,70 @@ with col2:
 """
     )
 
-    st.subheader("Estimativas simuladas")
+    st.subheader("Resultados da classificação simulada")
 
-    metric_col1, metric_col2 = st.columns(2)
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
 
     metric_col1.metric(
         label="Apenas imagem",
         value=f"{image_score:.2f}",
     )
+    metric_col1.caption(classify(image_score))
 
     metric_col2.metric(
-        label="Multimodal",
+        label="Apenas dados clínicos",
+        value=f"{clinical_score:.2f}",
+    )
+    metric_col2.caption(classify(clinical_score))
+
+    metric_col3.metric(
+        label="Imagem + dados clínicos",
         value=f"{multimodal_score:.2f}",
-        delta=f"{difference:+.2f}",
+    )
+    metric_col3.caption(classify(multimodal_score))
+
+    st.info(
+        interpret_results(
+            image_score=image_score,
+            clinical_score=clinical_score,
+            multimodal_score=multimodal_score,
+        )
     )
 
-    st.progress(float(multimodal_score))
 
-    st.info(interpret_difference(image_score, multimodal_score))
+# ============================================================
+# COMPARAÇÃO VISUAL DOS SCORES
+# ============================================================
+
+st.divider()
+
+st.subheader("Comparação das três estimativas")
+
+labels = [
+    "Apenas imagem",
+    "Apenas dados clínicos",
+    "Imagem + dados clínicos",
+]
+
+values = [
+    image_score,
+    clinical_score,
+    multimodal_score,
+]
+
+fig_bar, ax_bar = plt.subplots(figsize=(7, 4))
+ax_bar.bar(labels, values)
+ax_bar.axhline(0.50, linestyle="--", linewidth=1)
+ax_bar.set_ylim(0, 1)
+ax_bar.set_ylabel("Estimativa simulada")
+ax_bar.set_title("Comparação entre modalidades")
+ax_bar.tick_params(axis="x", rotation=15)
+
+st.pyplot(fig_bar, clear_figure=True)
+
+st.caption(
+    "A linha tracejada representa o limiar pedagógico de classificação: 0.50."
+)
 
 
 # ============================================================
@@ -261,38 +358,53 @@ st.subheader("Como interpretar esta demo")
 st.markdown(
     """
 O primeiro valor representa uma estimativa construída apenas a partir da
-imagem. O segundo valor combina essa estimativa com fatores clínicos
-simulados.
+imagem. O segundo valor representa uma estimativa construída apenas com
+dados clínicos simulados. O terceiro valor combina as duas fontes de
+informação.
 
 Na prática clínica, uma imagem médica é geralmente interpretada em conjunto
 com outros dados: sintomas, idade, antecedentes, análises laboratoriais,
 relatórios anteriores ou informação genética. Esta integração de várias
 fontes de informação é a base dos modelos multimodais em medicina.
 
-Nesta demo, os pesos atribuídos a cada variável clínica são intencionais e
-arbitrários. Servem apenas para tornar visível a ideia de que o contexto
-clínico pode modificar a interpretação de uma imagem.
+Nesta demo, os pesos atribuídos a cada variável são intencionais e
+arbitrários. Servem apenas para tornar visível a ideia de que cada
+modalidade pode contribuir de forma diferente para a estimativa final.
 """
 )
 
-with st.expander("Ver fórmula simplificada usada na simulação"):
+with st.expander("Ver fórmulas simplificadas usadas na simulação"):
     st.markdown(
         """
-A estimativa multimodal é calculada assim:
+### Apenas imagem
 
 ```text
-estimativa_multimodal = estimativa_imagem
+0.62 se existir lesão visível
+0.38 se não existir lesão visível
 ```
 
-Depois são acrescentados incrementos simulados:
+### Apenas dados clínicos
 
 ```text
-+ 0.12 se fumador/a
-+ 0.10 se existir perda de peso
-+ 0.15 se existir histórico de cancro
+estimativa_clinica = 0.25
++ 0.18 se fumador/a
++ 0.22 se existir perda de peso
++ 0.25 se existir histórico de cancro
 ```
 
-O valor final é limitado a 0.99.
+### Imagem + dados clínicos
+
+```text
+estimativa_multimodal = 0.60 × estimativa_imagem
+                     + 0.40 × estimativa_clinica
+```
+
+### Classificação
+
+```text
+score < 0.50  → Baixa suspeição simulada
+score >= 0.50 → Elevada suspeição simulada
+```
 
 Mais uma vez: estes valores não têm significado clínico real.
 """

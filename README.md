@@ -5,8 +5,9 @@ Esta pequena aplicação demonstra, de forma pedagógica, o conceito de **multi-
 O objetivo é mostrar que:
 
 1. Uma imagem médica isolada pode ser ambígua;
-2. Dados clínicos adicionais podem alterar uma estimativa de risco;
-3. Um modelo multimodal combina diferentes fontes de informação, por exemplo:
+2. Dados clínicos isolados também podem ser insuficientes;
+3. A combinação entre imagem e dados clínicos pode alterar a estimativa final;
+4. Multi-modalidade significa combinar diferentes fontes de informação, por exemplo:
    - imagem médica;
    - dados clínicos estruturados;
    - texto clínico;
@@ -85,13 +86,28 @@ O utilizador pode ativar ou desativar:
 - perda de peso;
 - histórico de cancro.
 
-A aplicação compara duas estimativas:
+A aplicação compara três estimativas simuladas:
 
 1. **Modelo apenas com imagem**  
    Usa apenas a presença ou ausência de uma alteração visual na imagem sintética.
 
-2. **Modelo multimodal**  
-   Combina a estimativa baseada na imagem com fatores clínicos simulados.
+2. **Modelo apenas com dados clínicos**  
+   Usa apenas fatores clínicos simulados, sem olhar para a imagem.
+
+3. **Modelo multimodal**  
+   Combina a estimativa baseada na imagem com a estimativa baseada nos dados clínicos.
+
+---
+
+## Classificação usada na demo
+
+Cada estimativa gera uma classificação simplificada:
+
+- valor inferior a 0.50: **Baixa suspeição simulada**;
+- valor igual ou superior a 0.50: **Elevada suspeição simulada**.
+
+Esta classificação é apenas pedagógica.  
+Não tem significado clínico real.
 
 ---
 
